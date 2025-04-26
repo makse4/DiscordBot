@@ -9,7 +9,7 @@ import asyncio
 
 load_dotenv()
 
-GUILD_ID = os.getenv("GUILD_ID")
+GUILD_ID = int(os.getenv("GUILD_ID"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 
@@ -37,14 +37,8 @@ def _extract(query, ydl_opts):
 
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     print(f"{bot.user} is online!")
-
-    try:
-        test_guild = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=test_guild)
-        print(f"Synced {len(synced)} command(s) with the guild.")
-    except Exception as e:
-        print(f"Failed to sync commands: {e}")
 
 
 @bot.command()
@@ -86,11 +80,12 @@ async def ping(ctx):
     Responds with 'Pong!' to check if the bot is responsive.
     """
     await ctx.send("Pong!")
-    
 
-@bot.tree.command(name="play", description="Play a song from YouTube")
+
+@bot.tree.command(name="play", description="Play a song from YouTube", guild=discord.Object(id=GUILD_ID))
 @app_commands.describe(song_query="The song to play")
 async def play(interaction: discord.Interaction, song_query: str):
+    await interaction.response.defer()
     
     voice_channel = interaction.user.voice.channel
     if voice_channel is None:
@@ -99,7 +94,7 @@ async def play(interaction: discord.Interaction, song_query: str):
     
     voice_client = interaction.guild.voice_client
     if voice_client is None:
-        await voice_channel.connect()
+        voice_client = await voice_channel.connect()
     elif voice_channel != voice_client.channel:
         await voice_client.move_to(voice_channel)
     
@@ -110,7 +105,7 @@ async def play(interaction: discord.Interaction, song_query: str):
     'youtube_include_hls_manifest': False,
 }
 
-    query = '1ytsearch:' + song_query
+    query = 'ytsearch1:' + song_query
     results = await search_ytdlp_async(query, ydl_options)
     tracks = results.get('entries', [])
 
@@ -120,7 +115,7 @@ async def play(interaction: discord.Interaction, song_query: str):
 
     first_track = tracks[0]
     audio_url = first_track["url"]
-    tirle = first_track.get("title", "Unknown Title")
+    title = first_track.get("title", "Unknown Title")
 
     ffmpeg_options = {
         'options': '-vn -c:a libopus -b:a 96k',
@@ -129,5 +124,7 @@ async def play(interaction: discord.Interaction, song_query: str):
 
     source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable="bin\\ffmpeg\\ffmpeg.exe")
     voice_client.play(source)
+
+print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
 
 bot.run(TOKEN)
