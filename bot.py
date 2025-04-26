@@ -38,7 +38,7 @@ def _extract(query, ydl_opts):
 @bot.event
 async def on_ready():
     try:
-        synced = await bot.tree.sync(test_guild=discord.Object(id=GUILD_ID))
+        synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Synced {len(synced)} command(s).")
         print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
     except Exception as e:
