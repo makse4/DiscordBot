@@ -37,8 +37,14 @@ def _extract(query, ydl_opts):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
-    print(f"{bot.user} is online!")
+    try:
+        synced = await bot.tree.sync(test_guild=discord.Object(id=GUILD_ID))
+        print(f"Synced {len(synced)} command(s).")
+        print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
+    
+    print(f"Logged in as {bot.user.name} ({bot.user.id})")
 
 
 @bot.command()
@@ -82,7 +88,7 @@ async def ping(ctx):
     await ctx.send("Pong!")
 
 
-@bot.tree.command(name="play", description="Play a song from YouTube", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="play", description="Play a song from YouTube")
 @app_commands.describe(song_query="The song to play")
 async def play(interaction: discord.Interaction, song_query: str):
     await interaction.response.defer()
@@ -124,7 +130,46 @@ async def play(interaction: discord.Interaction, song_query: str):
 
     source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable=FFMPEG_PATH)
     voice_client.play(source)
+    await interaction.followup.send(f"Now playing: **{title}**")
 
-print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
+
+@bot.tree.command(name="stop", description="Stop the current audio")
+async def stop(interaction: discord.Interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client and voice_client.is_playing():
+        voice_client.stop()
+        await interaction.response.send_message("Stopped the audio.")
+    else:
+        await interaction.response.send_message("No audio is currently playing.")
+
+
+@bot.tree.command(name="pause", description="Pause the current audio")
+async def pause(interaction: discord.Interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client and voice_client.is_playing():
+        voice_client.pause()
+        await interaction.response.send_message("Paused the audio.")
+    else:
+        await interaction.response.send_message("No audio is currently playing.")
+
+
+@bot.tree.command(name="resume", description="Resume the paused audio")
+async def resume(interaction: discord.Interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client and voice_client.is_paused():
+        voice_client.resume()
+        await interaction.response.send_message("Resumed the audio.")
+    else:
+        await interaction.response.send_message("No audio is currently paused.")
+
+
+@bot.tree.command(name="disconnect", description="Disconnect the bot from the voice channel")
+async def disconnect(interaction: discord.Interaction):
+    voice_client = interaction.guild.voice_client
+    if voice_client:
+        await voice_client.disconnect()
+        await interaction.response.send_message("Disconnected from the voice channel.")
+    else:
+        await interaction.response.send_message("I'm not connected to any voice channel.")
 
 bot.run(TOKEN)
