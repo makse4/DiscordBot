@@ -39,6 +39,26 @@ def _extract(query, ydl_opts):
 async def on_ready():
     print(f"{bot.user} is online!")
 
+    try:
+        test_guild = discord.Object(id=GUILD_ID)
+        synced = await bot.tree.sync(guild=test_guild)
+        print(f"Synced {len(synced)} command(s) with the guild.")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
+
+
+@bot.command()
+async def sync(ctx):
+    """
+    Syncs the command tree with the guild.
+    """
+    try:
+        test_guild = discord.Object(id=GUILD_ID)
+        synced = await bot.tree.sync(guild=test_guild)  # Sync to the specific guild
+        await ctx.send(f"Synced {len(synced)} commands with the guild.")
+    except Exception as e:
+        await ctx.send(f"Failed to sync commands: {e}")
+
 
 @bot.event
 async def on_message(message):
@@ -66,16 +86,7 @@ async def ping(ctx):
     Responds with 'Pong!' to check if the bot is responsive.
     """
     await ctx.send("Pong!")
-
-@bot.command()
-async def sync(ctx):
-    """
-    Syncs the command tree with the guild.
-    """
-    test_guild = discord.Object(id=GUILD_ID)
-    await bot.tree.sync(guild=test_guild)
-    await ctx.send("Synced commands with the guild.")
-
+    
 
 @bot.tree.command(name="play", description="Play a song from YouTube")
 @app_commands.describe(song_query="The song to play")
