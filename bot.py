@@ -11,7 +11,7 @@ load_dotenv()
 
 GUILD_ID = int(os.getenv("GUILD_ID"))
 TOKEN = os.getenv("DISCORD_TOKEN")
-
+FFMPEG_PATH = os.getenv("FFMPEG_PATH")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -122,7 +122,7 @@ async def play(interaction: discord.Interaction, song_query: str):
         'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
     }
 
-    source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable="bin\\ffmpeg\\ffmpeg.exe")
+    source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable=FFMPEG_PATH)
     voice_client.play(source)
 
 print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
