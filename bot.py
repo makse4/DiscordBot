@@ -36,7 +36,6 @@ def _extract(query, ydl_opts):
             return None
 
 
-
 @bot.event
 async def on_ready():
     try:
@@ -52,7 +51,7 @@ async def on_ready():
 @bot.command()
 async def sync(ctx):
     """
-    Syncs the command tree with the guild.
+    Syncs the command tree with the guild. Currently useless.
     """
     try:
         test_guild = discord.Object(id=GUILD_ID)
@@ -198,6 +197,7 @@ async def play_next_song(voice_client, guild_id, channel):
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
         }
         source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable=FFMPEG_PATH)
+        
         def after_playing(error):
             if error:
                 print(f"Error playing audio: {error}")
