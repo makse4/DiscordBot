@@ -114,9 +114,13 @@ async def play(interaction: discord.Interaction, song_query: str):
 
     query = 'ytsearch1:' + song_query
     results = await search_ytdlp_async(query, ydl_options)
+    if results is None:
+        await interaction.response.send_message("No results found.")
+        return
+
     tracks = results.get('entries', [])
 
-    if tracks is None:
+    if not tracks:
         await interaction.response.send_message("No results found.")
         return
 
