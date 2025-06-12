@@ -193,7 +193,7 @@ async def play_next_song(voice_client, guild_id, channel):
         audio_url, title = SONG_QUEUES[guild_id].popleft()
     
         ffmpeg_options = {
-            'options': '-vn -c:a libopus -b:a 96k',
+            'options': '-vn -codec:a libopus -b:a 96k',
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
         }
         source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable=FFMPEG_PATH)
