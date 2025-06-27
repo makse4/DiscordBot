@@ -6,13 +6,15 @@ from discord import app_commands
 from dotenv import load_dotenv
 import yt_dlp
 import asyncio
-
+from keep_alive import keep_alive
 
 load_dotenv()
 
 GUILD_ID = int(os.getenv("GUILD_ID"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 FFMPEG_PATH = os.getenv("FFMPEG_PATH")
+
+keep_alive()
 
 intents = discord.Intents.default()
 intents.message_content = True
