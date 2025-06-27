@@ -3,3 +3,4 @@ yt_dlp
 dotenv
 PyNaCl
 opuslib
+flask
