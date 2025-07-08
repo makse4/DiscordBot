@@ -81,13 +81,6 @@ async def delete(ctx, amount: int):
     await ctx.send(f"Deleted {len(deleted)} messages.", delete_after=5)
 
 
-@bot.command()
-async def ping(ctx):
-    """
-    Responds with 'Pong!' to check if the bot is responsive.
-    """
-    await ctx.send("Pong!")
-
 
 @bot.tree.command(name="play", description="Play a song from YouTube")
 @app_commands.describe(song_query="The song to play")
@@ -114,15 +107,13 @@ async def play(interaction: discord.Interaction, song_query: str):
 
     query = 'ytsearch1:' + song_query
     results = await search_ytdlp_async(query, ydl_options)
+
     if results is None:
-        await interaction.response.send_message("No results found.")
+        print("here")
+        await interaction.followup.send("No results found.")
         return
 
     tracks = results.get('entries', [])
-
-    if not tracks:
-        await interaction.response.send_message("No results found.")
-        return
 
     first_track = tracks[0]
     audio_url = first_track["url"]
