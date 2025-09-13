@@ -6,13 +6,20 @@ from discord import app_commands
 from dotenv import load_dotenv
 import yt_dlp
 import asyncio
+from chatgptAPI import smart_add
 
 load_dotenv()
 
-GUILD_ID = int(os.getenv("GUILD_ID"))
+GUILD_ID = os.getenv("GUILD_ID")
 TOKEN = os.getenv("DISCORD_TOKEN")
 FFMPEG_PATH = os.getenv("FFMPEG_PATH")
 
+ydl_options = {
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'youtube_include_dash_manifest': False,
+    'youtube_include_hls_manifest': False,
+}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -87,37 +94,11 @@ async def delete(ctx, amount: int):
 async def play(interaction: discord.Interaction, song_query: str):
     await interaction.response.defer()
     
-    voice_channel = interaction.user.voice.channel
-    if voice_channel is None:
-        await interaction.response.send_message("You need to be in a voice channel to use this command.")
-        return
-    
     voice_client = interaction.guild.voice_client
-    if voice_client is None:
-        voice_client = await voice_channel.connect()
-    elif voice_channel != voice_client.channel:
-        await voice_client.move_to(voice_channel)
     
-    ydl_options = {
-    'format': 'bestaudio/best',
-    'noplaylist': True,
-    'youtube_include_dash_manifest': False,
-    'youtube_include_hls_manifest': False,
-}
-
     query = 'ytsearch1:' + song_query
-    results = await search_ytdlp_async(query, ydl_options)
-
-    if results is None:
-        print("here")
-        await interaction.followup.send("No results found.")
-        return
-
-    tracks = results.get('entries', [])
-
-    first_track = tracks[0]
-    audio_url = first_track["url"]
-    title = first_track.get("title", "Unknown Title")
+    audio_url, title = await search_youtube(query, interaction)
+    voice_client = await connect_voice(interaction, voice_client)
 
     guild_id = str(interaction.guild.id)
     if SONG_QUEUES.get(guild_id) is None:
@@ -180,7 +161,60 @@ async def stop(interaction: discord.Interaction):
     await interaction.followup.send("Stopped the audio and disconnected from the voice channel.")
     await voice_client.disconnect()
 
+
+@bot.tree.command(name="smartplay", description="Add songs based on a search term")
+async def smart_play(interaction: discord.Interaction, search: str, amount_to_add: int):
+    await interaction.response.defer()
+
+    response = smart_add(search, amount_to_add)
+    guild_id = str(interaction.guild.id)
+
+    voice_client = interaction.guild.voice_client
+    voice_client = await connect_voice(interaction, voice_client)
+        
+    if not voice_client or not voice_client.is_connected():
+        await interaction.followup.send("Not connected to a voice channel.")
+        return
     
+    if SONG_QUEUES.get(guild_id) is None:
+        SONG_QUEUES[guild_id] = deque()
+
+    for song in response:
+        audio_url, title = await search_youtube(f"ytsearch1:{song}", interaction)
+        SONG_QUEUES[guild_id].append((audio_url, title))
+        if not voice_client.is_playing() and not voice_client.is_paused():
+            await play_next_song(voice_client, guild_id, interaction.channel)
+    
+    
+async def search_youtube(query, interaction):
+    results = await search_ytdlp_async(query, ydl_options)
+    print(f"Search results for '{query}': {results}")
+
+    if results is None or not results.get('entries'):
+        await interaction.channel.send(f"No results found for '{query}'. Using fallback song.")
+        return ('https://www.youtube.com/watch?v=iaGjz4dtr3o&list=RDiaGjz4dtr3o&start_radio=1', 'Baiana')
+
+    tracks = results.get('entries', [])
+
+    first_track = tracks[0]
+    audio_url = first_track["url"]
+    title = first_track.get("title", "Unknown Title")
+
+    return (audio_url, title)
+
+
+async def connect_voice(interaction, voice_client):
+    voice_channel = interaction.user.voice.channel
+    if voice_channel is None:
+        await interaction.response.send_message("You need to be in a voice channel to use this command.")
+        return -1
+    
+    if voice_client is None:
+        voice_client = await voice_channel.connect()
+    elif voice_channel != voice_client.channel:
+        await voice_client.move_to(voice_channel)
+    
+    return interaction.guild.voice_client
 
 
 async def play_next_song(voice_client, guild_id, channel):
