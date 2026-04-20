@@ -6,7 +6,6 @@ from discord import app_commands
 from dotenv import load_dotenv
 import yt_dlp
 import asyncio
-from chatgptAPI import smart_add
 
 load_dotenv()
 
@@ -16,10 +15,20 @@ FFMPEG_PATH = os.getenv("FFMPEG_PATH")
 
 ydl_options = {
     'format': 'bestaudio/best',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
     'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0',
     'youtube_include_dash_manifest': False,
     'youtube_include_hls_manifest': False,
 }
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -51,7 +60,7 @@ async def on_ready():
         print(f"Registered commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
     except Exception as e:
         print(f"Failed to sync commands: {e}")
-    
+
     print(f"Logged in as {bot.user.name} ({bot.user.id})")
 
 
@@ -72,7 +81,7 @@ async def sync(ctx):
 async def on_message(message):
     if message.author == bot.user:
         return
-    
+
     await bot.process_commands(message)
 
 
@@ -93,9 +102,9 @@ async def delete(ctx, amount: int):
 @app_commands.describe(song_query="The song to play")
 async def play(interaction: discord.Interaction, song_query: str):
     await interaction.response.defer()
-    
+
     voice_client = interaction.guild.voice_client
-    
+
     query = 'ytsearch1:' + song_query
     audio_url, title = await search_youtube(query, interaction)
     voice_client = await connect_voice(interaction, voice_client)
@@ -103,7 +112,7 @@ async def play(interaction: discord.Interaction, song_query: str):
     guild_id = str(interaction.guild.id)
     if SONG_QUEUES.get(guild_id) is None:
         SONG_QUEUES[guild_id] = deque()
-    
+
     SONG_QUEUES[guild_id].append((audio_url, title))
 
     if voice_client.is_playing() or voice_client.is_paused():
@@ -111,7 +120,7 @@ async def play(interaction: discord.Interaction, song_query: str):
     else:
         await interaction.followup.send(f"Now playing: **{title}**")
         await play_next_song(voice_client, guild_id, interaction.channel)
-    
+
 
 @bot.tree.command(name="skip", description="Skip the current song")
 async def skip(interaction: discord.Interaction):
@@ -150,42 +159,18 @@ async def stop(interaction: discord.Interaction):
     if not voice_client or not voice_client.is_connected():
         await interaction.followup.send("Not connected to a voice channel.")
         return
-    
+
     guild_id = str(interaction.guild.id)
     if guild_id in SONG_QUEUES:
         SONG_QUEUES[guild_id].clear()
-    
+
     if voice_client.is_playing() or voice_client.is_paused():
         voice_client.stop()
-    
+
     await interaction.followup.send("Stopped the audio and disconnected from the voice channel.")
     await voice_client.disconnect()
 
 
-@bot.tree.command(name="smartplay", description="Add songs based on a search term")
-async def smart_play(interaction: discord.Interaction, search: str, amount_to_add: int):
-    await interaction.response.defer()
-
-    response = smart_add(search, amount_to_add)
-    guild_id = str(interaction.guild.id)
-
-    voice_client = interaction.guild.voice_client
-    voice_client = await connect_voice(interaction, voice_client)
-        
-    if not voice_client or not voice_client.is_connected():
-        await interaction.followup.send("Not connected to a voice channel.")
-        return
-    
-    if SONG_QUEUES.get(guild_id) is None:
-        SONG_QUEUES[guild_id] = deque()
-
-    for song in response:
-        audio_url, title = await search_youtube(f"ytsearch1:{song}", interaction)
-        SONG_QUEUES[guild_id].append((audio_url, title))
-        if not voice_client.is_playing() and not voice_client.is_paused():
-            await play_next_song(voice_client, guild_id, interaction.channel)
-    
-    
 async def search_youtube(query, interaction):
     results = await search_ytdlp_async(query, ydl_options)
     print(f"Search results for '{query}': {results}")
@@ -208,25 +193,25 @@ async def connect_voice(interaction, voice_client):
     if voice_channel is None:
         await interaction.response.send_message("You need to be in a voice channel to use this command.")
         return -1
-    
+
     if voice_client is None:
         voice_client = await voice_channel.connect()
     elif voice_channel != voice_client.channel:
         await voice_client.move_to(voice_channel)
-    
+
     return interaction.guild.voice_client
 
 
 async def play_next_song(voice_client, guild_id, channel):
     if SONG_QUEUES[guild_id]:
         audio_url, title = SONG_QUEUES[guild_id].popleft()
-    
+
         ffmpeg_options = {
             'options': '-vn -codec:a libopus -b:a 96k',
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
         }
         source = discord.FFmpegOpusAudio(audio_url, **ffmpeg_options, executable=FFMPEG_PATH)
-        
+
         def after_playing(error):
             if error:
                 print(f"Error playing audio: {error}")
