@@ -12,6 +12,16 @@ load_dotenv()
 GUILD_ID = os.getenv("GUILD_ID")
 TOKEN = os.getenv("DISCORD_TOKEN")
 FFMPEG_PATH = os.getenv("FFMPEG_PATH")
+YTDLP_COOKIES_FILE = os.getenv("YTDLP_COOKIES_FILE")
+
+if not TOKEN:
+    raise RuntimeError("DISCORD_TOKEN is not set in environment variables.")
+
+if GUILD_ID is not None:
+    try:
+        GUILD_ID = int(GUILD_ID)
+    except ValueError:
+        raise RuntimeError("GUILD_ID must be an integer if provided.")
 
 ydl_options = {
     'format': 'bestaudio/best',
@@ -28,6 +38,9 @@ ydl_options = {
     'youtube_include_dash_manifest': False,
     'youtube_include_hls_manifest': False,
 }
+
+if YTDLP_COOKIES_FILE:
+    ydl_options['cookiefile'] = YTDLP_COOKIES_FILE
 
 
 intents = discord.Intents.default()
@@ -69,6 +82,10 @@ async def sync(ctx):
     """
     Syncs the command tree with the guild. Currently useless.
     """
+    if GUILD_ID is None:
+        await ctx.send("GUILD_ID is not configured.")
+        return
+
     try:
         test_guild = discord.Object(id=GUILD_ID)
         synced = await bot.tree.sync(guild=test_guild)  # Sync to the specific guild
@@ -104,10 +121,12 @@ async def play(interaction: discord.Interaction, song_query: str):
     await interaction.response.defer()
 
     voice_client = interaction.guild.voice_client
+    voice_client = await connect_voice(interaction, voice_client)
+    if voice_client is None:
+        return
 
     query = 'ytsearch1:' + song_query
     audio_url, title = await search_youtube(query, interaction)
-    voice_client = await connect_voice(interaction, voice_client)
 
     guild_id = str(interaction.guild.id)
     if SONG_QUEUES.get(guild_id) is None:
@@ -173,10 +192,11 @@ async def stop(interaction: discord.Interaction):
 
 async def search_youtube(query, interaction):
     results = await search_ytdlp_async(query, ydl_options)
-    print(f"Search results for '{query}': {results}")
+    if results is None:
+        print(f"No yt-dlp results for query: {query}")
 
     if results is None or not results.get('entries'):
-        await interaction.channel.send(f"No results found for '{query}'. Using fallback song.")
+        await interaction.followup.send(f"No results found for '{query}'. Using fallback song.")
         return ('https://www.youtube.com/watch?v=iaGjz4dtr3o&list=RDiaGjz4dtr3o&start_radio=1', 'Baiana')
 
     tracks = results.get('entries', [])
@@ -189,10 +209,11 @@ async def search_youtube(query, interaction):
 
 
 async def connect_voice(interaction, voice_client):
+    if interaction.user.voice is None or interaction.user.voice.channel is None:
+        await interaction.followup.send("You need to be in a voice channel to use this command.")
+        return None
+
     voice_channel = interaction.user.voice.channel
-    if voice_channel is None:
-        await interaction.response.send_message("You need to be in a voice channel to use this command.")
-        return -1
 
     if voice_client is None:
         voice_client = await voice_channel.connect()
@@ -203,8 +224,15 @@ async def connect_voice(interaction, voice_client):
 
 
 async def play_next_song(voice_client, guild_id, channel):
-    if SONG_QUEUES[guild_id]:
-        audio_url, title = SONG_QUEUES[guild_id].popleft()
+    queue = SONG_QUEUES.get(guild_id)
+    if queue:
+        audio_url, title = queue.popleft()
+
+        if not FFMPEG_PATH:
+            await channel.send("FFMPEG_PATH is not configured. Cannot play audio.")
+            await voice_client.disconnect()
+            SONG_QUEUES[guild_id] = deque()
+            return
 
         ffmpeg_options = {
             'options': '-vn -codec:a libopus -b:a 96k',

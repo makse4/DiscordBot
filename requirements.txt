@@ -1,7 +1,4 @@
 discord.py
 yt_dlp
-dotenv
+python-dotenv
 PyNaCl
-opuslib
-flask
-davey
