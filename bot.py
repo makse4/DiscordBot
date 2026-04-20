@@ -24,7 +24,7 @@ if GUILD_ID is not None:
         raise RuntimeError("GUILD_ID must be an integer if provided.")
 
 ydl_options = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
@@ -37,6 +37,11 @@ ydl_options = {
     'source_address': '0.0.0.0',
     'youtube_include_dash_manifest': False,
     'youtube_include_hls_manifest': False,
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web'],
+        },
+    },
 }
 
 if YTDLP_COOKIES_FILE:
@@ -197,7 +202,11 @@ async def search_youtube(query, interaction):
 
     if results is None or not results.get('entries'):
         await interaction.followup.send(f"No results found for '{query}'. Using fallback song.")
-        return ('https://www.youtube.com/watch?v=iaGjz4dtr3o&list=RDiaGjz4dtr3o&start_radio=1', 'Baiana')
+        fallback = await search_ytdlp_async('https://www.youtube.com/watch?v=iaGjz4dtr3o', ydl_options)
+        if fallback is None:
+            return (None, None)
+
+        return (fallback.get('url'), fallback.get('title', 'Baiana'))
 
     tracks = results.get('entries', [])
 
